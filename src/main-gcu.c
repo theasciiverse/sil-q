@@ -57,6 +57,7 @@
 
 #include <sys/ioctl.h>
 #include <termios.h>
+#include <signal.h>
 
 /*
  * OPTION: some machines lack "cbreak()"
@@ -126,6 +127,81 @@ static int colortable[16];
  * Background color we should draw with; either BLACK or DEFAULT
  */
 static int bg_color = COLOR_BLACK;
+
+/*
+ * Asciiverse: the main window fills the whole terminal, unless the "-w"
+ * sub-option asks for the split layout with extra windows
+ */
+static bool use_big_screen = TRUE;
+
+/*
+ * Asciiverse: set when the terminal has changed size
+ */
+static volatile sig_atomic_t gcu_resized = 0;
+
+/*
+ * Asciiverse: set when the terminal changed size during a menu, so that
+ * the game screen is drawn again once the menu is closed
+ */
+static bool gcu_redraw_later = FALSE;
+
+static void handle_winch(int sig)
+{
+    (void)sig;
+    gcu_resized = 1;
+}
+
+/*
+ * Asciiverse: follow the terminal's size. With one big window, the main
+ * term takes the new size and the game redraws itself for it; in the split
+ * layout the windows keep their sizes and are only redrawn. A terminal
+ * smaller than 80x24 is ignored until it grows again.
+ */
+static void gcu_resize(void)
+{
+    struct winsize ws;
+    term* old = Term;
+    int i;
+
+    gcu_resized = 0;
+
+    if (ioctl(1, TIOCGWINSZ, &ws) < 0)
+        return;
+    if ((ws.ws_col < 80) || (ws.ws_row < 24))
+        return;
+
+    if (use_big_screen)
+    {
+        (void)resizeterm(ws.ws_row, ws.ws_col);
+        (void)wresize(data[0].win, LINES, COLS);
+        Term_activate(&data[0].t);
+        (void)Term_resize(COLS, LINES);
+        Term_activate(old);
+    }
+
+    (void)clearok(curscr, TRUE);
+
+    if (character_generated && !character_icky)
+    {
+        /* Keep the player in view, and draw everything again */
+        p_ptr->update |= (PU_PANEL);
+        do_cmd_redraw();
+        return;
+    }
+
+    /* In a menu: draw what it has, and everything once it is closed */
+    if (character_generated)
+        gcu_redraw_later = TRUE;
+    for (i = 0; i < MAX_TERM_DATA; i++)
+    {
+        if (!angband_term[i])
+            continue;
+        Term_activate(angband_term[i]);
+        Term_redraw();
+        Term_fresh();
+    }
+    Term_activate(old);
+}
 
 /*
  * Place the "keymap" into its "normal" state
@@ -233,6 +309,9 @@ static errr Term_xtra_gcu_alive(int v)
 
         /* Go to angband keymap mode */
         keymap_game();
+
+        /* Asciiverse: the terminal may have changed size meanwhile */
+        gcu_resized = 1;
     }
 
     /* Success */
@@ -240,9 +319,9 @@ static errr Term_xtra_gcu_alive(int v)
 }
 
 #ifdef USE_NCURSES
-const char help_gcu[] = "NCurses, for terminal console, subopts -b(ig screen)";
+const char help_gcu[] = "NCurses, for terminal console, subopts -w(indows)";
 #else /* USE_NCURSES */
-const char help_gcu[] = "Curses, for terminal console, subopts -b(ig screen)";
+const char help_gcu[] = "Curses, for terminal console, subopts -w(indows)";
 #endif /* USE_NCURSES */
 
 /*
@@ -385,6 +464,16 @@ static errr Term_xtra_gcu_event(int v)
 
     char buf[2];
 
+    /* Asciiverse: follow a change of the terminal's size */
+    if (gcu_resized)
+        gcu_resize();
+    if (gcu_redraw_later && character_generated && !character_icky)
+    {
+        gcu_redraw_later = FALSE;
+        p_ptr->update |= (PU_PANEL);
+        do_cmd_redraw();
+    }
+
     /* Wait */
     if (v)
     {
@@ -394,6 +483,10 @@ static errr Term_xtra_gcu_event(int v)
         /* Hack -- Handle bizarre "errors" */
         if ((i <= 0) && (errno != EINTR))
             exit_game_panic();
+
+        /* Asciiverse: interrupted by a change of size */
+        if (gcu_resized)
+            gcu_resize();
     }
 
     /* Do not wait */
@@ -735,14 +828,22 @@ errr init_gcu(int argc, char** argv)
 
     int num_term = MAX_TERM_DATA, next_win = 0;
 
-    bool use_big_screen = FALSE;
+    struct sigaction sa;
 
     /* Parse args */
     for (i = 1; i < argc; i++)
     {
+        /* Asciiverse: one big window is the default now */
         if (prefix(argv[i], "-b"))
         {
             use_big_screen = TRUE;
+            continue;
+        }
+
+        /* Asciiverse: the split layout, with extra windows */
+        if (prefix(argv[i], "-w"))
+        {
+            use_big_screen = FALSE;
             continue;
         }
 
@@ -956,6 +1057,16 @@ errr init_gcu(int argc, char** argv)
 
     /* Remember the active screen */
     term_screen = &data[0].t;
+
+    /*
+     * Asciiverse: follow changes of the terminal's size (this replaces
+     * curses' own handler); no SA_RESTART, so a change interrupts the
+     * wait for a key
+     */
+    memset(&sa, 0, sizeof(sa));
+    sa.sa_handler = handle_winch;
+    sigemptyset(&sa.sa_mask);
+    (void)sigaction(SIGWINCH, &sa, NULL);
 
     /* Success */
     return (0);
