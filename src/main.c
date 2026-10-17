@@ -19,6 +19,10 @@
 
 #include "main.h"
 
+#ifdef USE_XDG_DATA_PATH
+#include <limits.h>
+#endif
+
 /*
  * Sil-y: game in progress
  */
@@ -109,6 +113,71 @@ static void create_user_dir(void)
 
 #endif /* PRIVATE_USER_PATH */
 
+#ifdef USE_XDG_DATA_PATH
+
+/*
+ * Asciiverse: whether "dir" holds Sil's "lib" folder.
+ */
+static bool is_lib_dir(cptr dir)
+{
+    char buf[1024];
+    struct stat st;
+
+    strnfmt(buf, sizeof(buf), "%sedit", dir);
+    return (stat(buf, &st) == 0) && S_ISDIR(st.st_mode);
+}
+
+/*
+ * Asciiverse: Sil reads its "lib" folder from the folder it is started
+ * in, where av starts it; started from elsewhere (by a shell, through a
+ * link on the PATH), it finds "lib" beside its own binary instead.
+ */
+static void find_lib_dir(char* path, size_t len)
+{
+    char exe[1024];
+    char real[PATH_MAX];
+    char* slash;
+
+    if (is_lib_dir(path) || !argv0 || !argv0[0])
+        return;
+
+    if (strchr(argv0, '/'))
+    {
+        my_strcpy(exe, argv0, sizeof(exe));
+    }
+    else
+    {
+        /* Search the PATH for the binary, as the shell did */
+        cptr env = getenv("PATH");
+        bool found = FALSE;
+
+        while (env && *env && !found)
+        {
+            cptr end = strchr(env, ':');
+            int n = end ? (int)(end - env) : (int)strlen(env);
+
+            strnfmt(exe, sizeof(exe), "%.*s/%s", n, env, argv0);
+            if (n > 0 && access(exe, X_OK) == 0)
+                found = TRUE;
+            env = end ? end + 1 : NULL;
+        }
+        if (!found)
+            return;
+    }
+
+    if (!realpath(exe, real))
+        return;
+    slash = strrchr(real, '/');
+    if (!slash)
+        return;
+    slash[1] = '\0';
+    my_strcat(real, "lib/", sizeof(real));
+    if (is_lib_dir(real))
+        my_strcpy(path, real, len);
+}
+
+#endif /* USE_XDG_DATA_PATH */
+
 /*
  * Initialize and verify the file paths, and the score file.
  *
@@ -143,6 +212,12 @@ static void init_stuff(void)
 
     /* Use the angband_path, or a default */
     my_strcpy(path, tail ? tail : DEFAULT_PATH, sizeof(path));
+
+#ifdef USE_XDG_DATA_PATH
+    /* Asciiverse: else beside the binary */
+    if (!tail)
+        find_lib_dir(path, sizeof(path));
+#endif /* USE_XDG_DATA_PATH */
 
     /* Make sure it's terminated */
     path[511] = '\0';

@@ -49,6 +49,72 @@ extern const char* get_runtime_user_path(void);
  * that the binary image files are extremely system dependant.
  */
 
+#ifdef USE_XDG_DATA_PATH
+
+/*
+ * Asciiverse: make the folder "path" and any missing parents of it.
+ */
+static void make_dirs(char* path)
+{
+    char* p;
+
+    for (p = path + 1; *p; p++)
+    {
+        if (*p != '/')
+            continue;
+        *p = '\0';
+        (void)mkdir(path, 0700);
+        *p = '/';
+    }
+    (void)mkdir(path, 0700);
+}
+
+/*
+ * Asciiverse: keep the player's own files in the player's data folder,
+ * "$XDG_DATA_HOME/sil-q" or else "~/.local/share/sil-q", in the sub-folders
+ * "save" (saved characters), "scores" (the high scores), "user" (pref files,
+ * character dumps, notes) and "data" (the ".raw" files compiled from
+ * lib/edit), made as needed. The "lib" folder itself is only read, so it
+ * can sit read-only beside the binary.
+ */
+static void xdg_user_paths(void)
+{
+    static cptr subs[4] = { "user", "data", "scores", "save" };
+    cptr* dirs[4];
+    char base[1024];
+    char buf[1024];
+    cptr env;
+    int i;
+
+    dirs[0] = &ANGBAND_DIR_USER;
+    dirs[1] = &ANGBAND_DIR_DATA;
+    dirs[2] = &ANGBAND_DIR_APEX;
+    dirs[3] = &ANGBAND_DIR_SAVE;
+
+    env = getenv("XDG_DATA_HOME");
+    if (env && (env[0] == '/'))
+    {
+        strnfmt(base, sizeof(base), "%s/sil-q", env);
+    }
+    else
+    {
+        env = getenv("HOME");
+        if (!env || !env[0])
+            return;
+        strnfmt(base, sizeof(base), "%s/.local/share/sil-q", env);
+    }
+
+    for (i = 0; i < 4; i++)
+    {
+        strnfmt(buf, sizeof(buf), "%s/%s", base, subs[i]);
+        make_dirs(buf);
+        string_free(*dirs[i]);
+        *dirs[i] = string_make(buf);
+    }
+}
+
+#endif /* USE_XDG_DATA_PATH */
+
 /*
  * Find the default paths to all of our important sub-directories.
  *
@@ -189,6 +255,11 @@ void init_file_paths(char* path)
     /* Build a path name */
     strcpy(tail, "script");
     ANGBAND_DIR_SCRIPT = string_make(path);
+
+#ifdef USE_XDG_DATA_PATH
+    /* Asciiverse: the player's files go to the player's data folder */
+    xdg_user_paths();
+#endif /* USE_XDG_DATA_PATH */
 }
 
 #ifdef ALLOW_TEMPLATES

@@ -560,6 +560,10 @@ elseif (WIN32)
 
 # Linux and (non-Cocoa) macOS
 else()
+    # Asciiverse: the player's files in the XDG data folder, lib/ read-only
+    # beside the binary (src/init2.c, src/main.c)
+    target_compile_definitions(${SIL_TARGET} PRIVATE USE_XDG_DATA_PATH)
+
     if (SUPPORT_GCU_FRONTEND)
         find_package(Curses REQUIRED)
         target_compile_definitions(${SIL_TARGET} PRIVATE USE_GCU)
