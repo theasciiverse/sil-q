@@ -29,6 +29,8 @@ static void updatecharinfoS(void)
     path_parse(parsed_dir_user, sizeof(parsed_dir_user), ANGBAND_DIR_USER);
     path_build(tmp_Path, sizeof(tmp_Path), parsed_dir_user, "CharOutput.txt");
     oFile = fopen(tmp_Path, "w");
+    if (!oFile)
+        return;
     fprintf(oFile, "{\n");
     fprintf(oFile, "race: \"%s\",\n", races[p_ptr->prace]);
     fprintf(oFile, "class: \"%s\",\n", houses[p_ptr->phouse]);
