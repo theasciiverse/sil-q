@@ -1,128 +1,108 @@
-# Creates a draft GitHub Release with versioned release artifacts for all
-# platforms (Windows, macOS, Linux) and the source code.
+# Builds Sil-Q for the Asciiverse catalog: one archive per target, named
+# sil-q-<target>.tar.gz, plus a SHA256SUMS file, attached to a GitHub
+# release (hub/catalog/SCHEMA.md, release.source = "github"). Runs on a
+# pushed tag, or by hand for an existing tag. This replaces Sil-Q's own
+# release workflow and its per-platform builds (Windows, Cocoa, X11), which
+# the Asciiverse does not ship.
 #
-# == Creating a new release  ==
-#
-# Releases (and thus this GitHub Action workflow) are triggered by git tags that
-# match the `v*` pattern, like `v1.2.3` or `v1.2.3.4-beta1`. The tag name will
-# be used verbatim for naming the release artifacts.
-#
-# ****************************************************************************
-#  IMPORTANT: You must manually ensure that the git release tag (such as
-#             `v1.5.1.0`) matches the version information in the source code!
-# ****************************************************************************
-#
-# 1. Create the new release tag. Must have `v` prefix, like `v1.5.0`.
-#
-#   $ git tag v1.5.1
-#
-# 2. Push the tag.
-#
-#   $ git push --tags
-#
-# This triggers the workflow, which calls the platform workflows (linux.yml,
-# mac.yml, windows.yml, src.yml) in release mode via `workflow_call`, passing
-# the tag as the `version` input. Each platform workflow then creates a
-# versioned archive instead of a snapshot artifact.
-#
-# The archives are uploaded to a draft release at:
-#   https://github.com/<owner>/<repo>/releases
-#
-# 3. Go to https://github.com/sil-quirk/sil-q/releases to review and edit the
-#    (draft) release notes on GitHub, then publish when ready.
-#
-# Release artifacts are permanent and publicly downloadable.
-#
-#
-# == Testing the release process defined in this file ==
-#
-# The easiest option to test the release process is to create a "test tag".
-# It is also the most realistic test because it runs the actual workflow
-# end-to-end.
-#
-# Because the release is created as a draft, it's not visible to the public. You
-# can push a test tag, verify everything works, then delete both the draft
-# release and the tag:
-#
-# 1. Create a "test tag".
-#
-#   $ git tag v0.0.0-test
-#   $ git push --tags
-#
-# 2. Manually verify that the workflow runs and the draft release appears.
-#
-# 3. Then clean up:
-#
-#   # Delete the draft release.
-#   # `gh` is the GitHub CLI tool (https://cli.github.com/)
-#   $ gh release delete v0.0.0-test -R sil-quirk/sil-q
-#
-#   # Delete local test tag
-#   $ git tag -d v0.0.0-test
-#
-#   # Delete remote test tag
-#   $ git push --delete origin v0.0.0-test
-#
-# If something didn't work as expected and you must modify any of the GitHub
-# Action workflows (including release.yml), then you must push these changes
-# first and then try again from scratch with a new test tag.
-#
+# Only the curses (gcu) frontend is built. Linux builds run in Alpine and
+# link ncurses statically, so the binaries carry the -musl triple that av
+# looks for first and need no libncurses on the player's machine. macOS
+# links the system ncurses, which every Mac has. No Windows build: the
+# curses frontend leans on POSIX terminals (termios, SIGWINCH), and Sil-Q's
+# own Windows edition is its graphical one.
 
-name: Release
+name: release
 
 on:
   push:
-    tags:
-      - 'v*'
+    tags: ["*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "existing tag to build and release"
+        required: true
+
+env:
+  TAG: ${{ inputs.tag || github.ref_name }}
+
+permissions:
+  contents: write
 
 jobs:
   linux:
-    name: Linux
-    uses: ./.github/workflows/linux.yml
-    with:
-      version: ${{ github.ref_name }}
-    secrets: inherit
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { target: x86_64-unknown-linux-musl, runner: ubuntu-24.04 }
+          - { target: aarch64-unknown-linux-musl, runner: ubuntu-24.04-arm }
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+          fetch-depth: 0
+
+      - name: Build and package
+        run: |
+          docker run --rm -v "$PWD":/src -w /src alpine:3.22 sh -c '
+            apk add --no-cache build-base cmake ncurses-dev ncurses-static git zip &&
+            git config --global --add safe.directory /src &&
+            STATIC=1 asciiverse/build.sh &&
+            asciiverse/package.sh ${{ matrix.target }}'
+          file out/sil
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.target }}
+          path: dist/*
 
   macos:
-    name: macOS
-    uses: ./.github/workflows/mac.yml
-    with:
-      version: ${{ github.ref_name }}
-    secrets: inherit
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { target: x86_64-apple-darwin, arch: x86_64 }
+          - { target: aarch64-apple-darwin, arch: arm64 }
+    runs-on: macos-14
+    env:
+      MACOSX_DEPLOYMENT_TARGET: "11.0"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+          fetch-depth: 0
 
-  windows:
-    name: Windows
-    uses: ./.github/workflows/windows.yml
-    with:
-      version: ${{ github.ref_name }}
-    secrets: inherit
+      - name: Build and package
+        run: |
+          CMAKE_ARGS="-DCMAKE_OSX_ARCHITECTURES=${{ matrix.arch }} -DCMAKE_OSX_DEPLOYMENT_TARGET=11.0" asciiverse/build.sh
+          file out/sil
+          asciiverse/package.sh ${{ matrix.target }}
 
-  source:
-    name: Source Code
-    uses: ./.github/workflows/src.yml
-    with:
-      version: ${{ github.ref_name }}
-    secrets: inherit
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.target }}
+          path: dist/*
 
   release:
-    name: Create GitHub Release
-    needs: [linux, macos, windows, source]
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
+    needs: [linux, macos]
+    runs-on: ubuntu-24.04
     steps:
-      - name: Download all artifacts
-        uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v4
         with:
+          path: dist
           merge-multiple: true
 
-      - name: List release assets
-        run: ls -la Sil-Q-*
+      - name: Checksums
+        working-directory: dist
+        run: sha256sum * > SHA256SUMS && cat SHA256SUMS
 
-      - name: Create release
-        uses: softprops/action-gh-release@v2
-        with:
-          name: Sil-Q ${{ github.ref_name }}
-          draft: true
-          generate_release_notes: true
-          files: Sil-Q-*
+      - name: Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view "$TAG" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1 \
+            || gh release create "$TAG" -R "$GITHUB_REPOSITORY" --title "Sil-Q $TAG" \
+                 --notes "Sil-Q $TAG, the terminal (curses) build, packaged for the Asciiverse catalog: one archive per target. Changes from Sil-Q are listed in PATCHES.md."
+          gh release upload "$TAG" dist/* -R "$GITHUB_REPOSITORY" --clobber

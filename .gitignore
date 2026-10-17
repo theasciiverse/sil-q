@@ -17,3 +17,8 @@ src/sil.o.x86_64
 # cmake build output
 /build/
 /.cache/
+# Asciiverse: build output, staged and packed archives, recorder caches
+/out/
+/stage/
+/dist/
+__pycache__/

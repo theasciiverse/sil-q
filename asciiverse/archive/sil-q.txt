@@ -1,0 +1,13 @@
+# Sil-Q: the binary, the game data it reads from lib/ beside it (monsters,
+# objects, vaults and the rest in lib/edit, key and colour prefs in
+# lib/pref, the tutorial level), Sil-Q's licence statement with both
+# licences in full, the Asciiverse notice and the manual. Left out: the
+# sounds in lib/xtra/sound (only "freeware, whatever that means", and the
+# curses build plays none), the tiles and fonts the curses build does not use.
+out/sil -> sil
+lib/edit
+lib/pref
+lib/xtra/tutorial
+LICENSE.md
+asciiverse/NOTICE -> NOTICE
+Sil-Q v1.5.0.pdf -> Sil-Q-manual.pdf

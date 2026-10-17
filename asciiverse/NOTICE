@@ -1,0 +1,25 @@
+Sil-Q, packaged for the Asciiverse.
+
+Sil-Q is the maintained continuation of Sil, the roguelike of the First
+Age of Middle-earth by half and Scatha (Sil 1.0 in 2012, Sil 1.3 in 2016,
+http://www.amirrorclear.net/flowers/game/sil/). Quirk started Sil-Q from
+the Sil 1.3 code in 2017; it is maintained today at
+https://github.com/sil-quirk/sil-q by Quirk, Michael G. Noll and the
+Sil-Q community, with tiles and the manual by MicroChasm. Sil itself grew
+from NPPAngband and Angband (Ben Harrison, James E. Wilson, Robert A.
+Koeneke and many others).
+
+Licence: LICENSE.md, beside this file, lets you use Sil-Q under either
+the GNU General Public License, version 2, or the Angband licence. The
+Asciiverse distributes it under the GNU General Public License,
+version 2. The complete source of this build, with every change the
+Asciiverse made listed in PATCHES.md, is at
+https://github.com/theasciiverse/sil-q.
+
+This archive holds only the terminal (curses) build. Sil-Q's sounds are
+left out: LICENSE.md calls them only "freeware, whatever that means",
+and the terminal build plays none. The tiles and fonts, which it does
+not use either, are left out too.
+
+Saved characters, high scores, pref files and character dumps are kept
+in your data folder, $XDG_DATA_HOME/sil-q, or ~/.local/share/sil-q.
