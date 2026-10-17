@@ -59,6 +59,27 @@ int usleep(unsigned long usecs)
 void user_name(char* buf, size_t len, int id)
 {
     struct passwd* pw = NULL;
+    cptr env = NULL;
+
+    /* Asciiverse: the player's own name from LOGNAME or USER first */
+    if (id == (int)getuid())
+    {
+        env = getenv("LOGNAME");
+        if (!env || !env[0])
+            env = getenv("USER");
+    }
+
+    if (env && env[0])
+    {
+        my_strcpy(buf, env, len);
+
+#ifdef CAPITALIZE_USER_NAME
+        if (islower((unsigned char)buf[0]))
+            buf[0] = toupper((unsigned char)buf[0]);
+#endif /* CAPITALIZE_USER_NAME */
+
+        return;
+    }
 
     /* Look up the user name */
     if ((pw = getpwuid(id)))
