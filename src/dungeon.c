@@ -3027,6 +3027,19 @@ void play_game(bool new_game)
         p_ptr->depth = 1;
     }
 
+#if !defined(WINDOWS) && !defined(COCOA)
+    /*
+     * Asciiverse: a new character is saved under its own name, which is
+     * the name "Open saved character" asks for; it went to the savefile
+     * of the default (login) name before
+     */
+    if (new_game && savefile[0])
+    {
+        process_player_name(TRUE);
+    }
+    else
+#endif
+
     /* Normal machine (process player name) */
     if (savefile[0])
     {
