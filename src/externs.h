@@ -544,7 +544,7 @@ extern int initial_menu(int* highlight);
 extern void cleanup_angband(void);
 
 /* load.c */
-extern bool load_player(void);
+extern bool load_player(bool new_game);
 
 /* melee1.c */
 extern int protection_roll(int typ, bool melee);

@@ -1790,8 +1790,11 @@ static errr rd_savefile(void)
  *
  * Note that we always try to load the "current" savefile, even if
  * there is no such file, so we must check for "empty" savefile names.
+ *
+ * Asciiverse: "new_game" says a new character is wanted, so a missing
+ * savefile is not worth a message.
  */
-bool load_player(void)
+bool load_player(bool new_game)
 {
     int fd = -1;
 
@@ -1830,9 +1833,12 @@ bool load_player(void)
     /* No file */
     if (fd < 0)
     {
-        /* Give a message */
-        msg_format("Savefile \"%s\" does not exist.", savefile);
-        message_flush();
+        /* Give a message, unless a new character is wanted anyway */
+        if (!new_game)
+        {
+            msg_format("Savefile \"%s\" does not exist.", savefile);
+            message_flush();
+        }
 
         /* Allow this */
         p_ptr->restoring = FALSE;

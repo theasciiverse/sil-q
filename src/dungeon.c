@@ -2953,7 +2953,7 @@ void play_game(bool new_game)
     character_loaded_dead = FALSE;
 
     /* Attempt to load */
-    if (!load_player())
+    if (!load_player(new_game))
     {
         /* Oops */
         character_icky--;
