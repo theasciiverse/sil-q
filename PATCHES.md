@@ -157,3 +157,9 @@ Left out of the archive:
 - Leaving the tutorial with Ctrl-X shows "You cannot save games-more-g
   the tutorial.": the `-more-` prompt is drawn over the message. The
   unchanged upstream build does the same; cosmetic, left alone.
+
+## Ours
+
+- **How to play it, at the top of README.md.** A short note on installing and
+  starting it with av, or from a release archive; the original text follows
+  unchanged.

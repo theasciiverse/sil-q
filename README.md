@@ -1,3 +1,16 @@
+> **Play it with Asciiverse.** With [av](https://asciiverse.sh), the Asciiverse
+> client:
+>
+> ```
+> av install sil-q
+> av play sil-q
+> ```
+>
+> Or download the archive for your system from this repository's Releases,
+> unpack it and run `./sil` (`sil.exe` on Windows).
+>
+> The original README follows.
+
 # Sil-Q
 
 [![Latest Release](https://img.shields.io/github/v/release/sil-quirk/sil-q?label=Latest%20Release)](https://github.com/sil-quirk/sil-q/releases)
