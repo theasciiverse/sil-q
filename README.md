@@ -6,9 +6,6 @@
 > av play sil-q
 > ```
 >
-> Or download the archive for your system from this repository's Releases,
-> unpack it and run `./sil`.
->
 > The original README follows.
 
 # Sil-Q
